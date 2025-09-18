@@ -1,4 +1,4 @@
-# GitHub Breakout
+# GitHub Breakout i
 
 Generate a Breakout game SVG from a GitHub user's contributions graph.
 
