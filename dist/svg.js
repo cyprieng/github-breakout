@@ -44,7 +44,7 @@ const GITHUB_DARK = [
  *
  * @param userName - The GitHub username to fetch contributions for.
  * @param githubToken - A GitHub personal access token with appropriate permissions.
- * @returns A 2D array representing weeks and days, where each element contains the color string or null.
+ * @returns The default color palette and a 2D array representing weeks and days, where each element contains the color string or null.
  * @throws Will throw an error if the API request fails or returns errors.
  */
 function fetchGithubContributionsGraphQL(userName, githubToken) {
@@ -58,6 +58,7 @@ function fetchGithubContributionsGraphQL(userName, githubToken) {
               contributionDays {
                 contributionLevel
                 contributionCount
+                color
               }
             }
           }
@@ -84,22 +85,34 @@ function fetchGithubContributionsGraphQL(userName, githubToken) {
         }
         // Format the contribution days into a 2D array of objects (weeks x days)
         const weeks = json.data.user.contributionsCollection.contributionCalendar.weeks;
+        const defaultColorPalette = {
+            0: "#000",
+            1: "#000",
+            2: "#000",
+            3: "#000",
+            4: "#000",
+        };
         const levels = [];
         for (let c = 0; c < weeks.length; c++) {
             levels[c] = [];
             const days = weeks[c].contributionDays;
             for (let r = 0; r < days.length; r++) {
+                const level = (days[r].contributionLevel === "FOURTH_QUARTILE" && 4) ||
+                    (days[r].contributionLevel === "THIRD_QUARTILE" && 3) ||
+                    (days[r].contributionLevel === "SECOND_QUARTILE" && 2) ||
+                    (days[r].contributionLevel === "FIRST_QUARTILE" && 1) ||
+                    0;
+                defaultColorPalette[level] = days[r].color;
                 levels[c][r] = {
-                    level: (days[r].contributionLevel === "FOURTH_QUARTILE" && 4) ||
-                        (days[r].contributionLevel === "THIRD_QUARTILE" && 3) ||
-                        (days[r].contributionLevel === "SECOND_QUARTILE" && 2) ||
-                        (days[r].contributionLevel === "FIRST_QUARTILE" && 1) ||
-                        0,
+                    level,
                     contributionCount: days[r].contributionCount,
                 };
             }
         }
-        return levels;
+        return {
+            days: levels,
+            defaultColorPalette: Object.values(defaultColorPalette),
+        };
     });
 }
 /**
@@ -233,10 +246,10 @@ function minifySVG(svg) {
  */
 function generateSVG(username_1, githubToken_1) {
     return __awaiter(this, arguments, void 0, function* (username, githubToken, options = {}) {
-        const { enableGhostBricks = true, paddleColor = "#1F6FEB", ballColor = "#1F6FEB", bricksColors = "github_light", } = options;
+        const { enableGhostBricks = true, paddleColor = "#1F6FEB", ballColor = "#1F6FEB", bricksColors, } = options;
         const colorDays = yield fetchGithubContributionsGraphQL(username, githubToken);
         // The number of columns (weeks) is determined by the API response
-        const brickColumnCount = colorDays.length;
+        const brickColumnCount = colorDays.days.length;
         // Calculate canvasWidth and canvasHeight dynamically
         const canvasWidth = brickColumnCount * (BRICK_SIZE + BRICK_GAP) + PADDING * 2 - BRICK_GAP; // right edge flush
         // Bricks area height
@@ -248,7 +261,7 @@ function generateSVG(username_1, githubToken_1) {
         // The ball and paddle should have enough space at the bottom (add a little margin)
         const canvasHeight = paddleY + PADDLE_HEIGHT + PADDING;
         // Pick palette
-        let colorPalette = GITHUB_LIGHT;
+        let colorPalette = colorDays.defaultColorPalette;
         if (bricksColors === "github_light") {
             colorPalette = GITHUB_LIGHT;
         }
@@ -262,7 +275,7 @@ function generateSVG(username_1, githubToken_1) {
         const bricks = [];
         for (let c = 0; c < brickColumnCount; c++) {
             for (let r = 0; r < 7; r++) {
-                const day = (colorDays[c] && colorDays[c][r]) || null;
+                const day = (colorDays.days[c] && colorDays.days[c][r]) || null;
                 if (!day)
                     continue; // skip bricks for missing days
                 bricks.push({

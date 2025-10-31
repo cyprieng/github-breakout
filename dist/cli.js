@@ -53,6 +53,7 @@ function getInput(name) {
  */
 function parseArgs(argv) {
     const parsed = {
+        defaultColors: false,
         dark: false,
         light: false,
     };
@@ -63,6 +64,9 @@ function parseArgs(argv) {
         }
         else if (arg === "--token" && i + 1 < argv.length) {
             parsed.token = argv[++i];
+        }
+        else if (arg === "--default-colors") {
+            parsed.defaultColors = true;
         }
         else if (arg === "--dark") {
             parsed.dark = true;
@@ -101,6 +105,7 @@ const bricksColorsFromInput = bricksColorsInput.length === 5
 const options = {
     username: cliArgs.username || getInput("GITHUB_USERNAME"),
     token: cliArgs.token || getInput("GITHUB_TOKEN"),
+    defaultColors: cliArgs.defaultColors,
     dark: cliArgs.dark,
     light: cliArgs.light,
     enableGhostBricks: (_b = cliArgs.enableGhostBricks) !== null && _b !== void 0 ? _b : ((_c = getInput("ENABLE_GHOST_BRICKS")) !== null && _c !== void 0 ? _c : "true") === "true",
@@ -118,10 +123,11 @@ if (!options.username || !options.token) {
 // Default options
 if (!options.dark &&
     !options.light &&
+    !options.defaultColors &&
     !options.bricksColors &&
     !options.paddleColor &&
     !options.ballColor) {
-    options.light = true; // Default to light mode if neither is specified
+    options.defaultColors = true; // Default colors if neither is specified
     // Enable both for GitHub actions by default
     if (process.env.GITHUB_ACTIONS === "true") {
         options.dark = true;
@@ -143,6 +149,9 @@ if (options.paddleColor || options.ballColor || options.bricksColors) {
         bricksColors: options.bricksColors || "github_light",
         name: "custom",
     });
+}
+if (options.defaultColors) {
+    variants.push({ bricksColors: undefined, name: "light" });
 }
 if (options.light) {
     variants.push({ bricksColors: "github_light", name: "light" });
