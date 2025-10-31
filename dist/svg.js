@@ -56,7 +56,7 @@ function fetchGithubContributionsGraphQL(userName, githubToken) {
           contributionCalendar {
             weeks {
               contributionDays {
-                color
+                contributionLevel
                 contributionCount
               }
             }
@@ -84,18 +84,22 @@ function fetchGithubContributionsGraphQL(userName, githubToken) {
         }
         // Format the contribution days into a 2D array of objects (weeks x days)
         const weeks = json.data.user.contributionsCollection.contributionCalendar.weeks;
-        const colors = [];
+        const levels = [];
         for (let c = 0; c < weeks.length; c++) {
-            colors[c] = [];
+            levels[c] = [];
             const days = weeks[c].contributionDays;
             for (let r = 0; r < days.length; r++) {
-                colors[c][r] = {
-                    color: days[r].color,
+                levels[c][r] = {
+                    level: (days[r].contributionLevel === "FOURTH_QUARTILE" && 4) ||
+                        (days[r].contributionLevel === "THIRD_QUARTILE" && 3) ||
+                        (days[r].contributionLevel === "SECOND_QUARTILE" && 2) ||
+                        (days[r].contributionLevel === "FIRST_QUARTILE" && 1) ||
+                        0,
                     contributionCount: days[r].contributionCount,
                 };
             }
         }
-        return colors;
+        return levels;
     });
 }
 /**
@@ -261,11 +265,10 @@ function generateSVG(username_1, githubToken_1) {
                 const day = (colorDays[c] && colorDays[c][r]) || null;
                 if (!day)
                     continue; // skip bricks for missing days
-                let dayColorIndex = GITHUB_LIGHT.indexOf(day.color.toLowerCase());
                 bricks.push({
                     x: c * (BRICK_SIZE + BRICK_GAP) + PADDING,
                     y: r * (BRICK_SIZE + BRICK_GAP) + PADDING,
-                    colorClass: dayColorIndex !== -1 ? `c${dayColorIndex}` : "c0",
+                    colorClass: `c${day.level}`,
                     status: "visible",
                     hasCommit: day.contributionCount > 0,
                 });
