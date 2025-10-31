@@ -73,7 +73,9 @@ type FrameState = {
 async function fetchGithubContributionsGraphQL(
   userName: string,
   githubToken: string,
-): Promise<({ color: string; contributionCount: number } | null)[][]> {
+): Promise<
+  ({ level: 0 | 1 | 2 | 3 | 4; contributionCount: number } | null)[][]
+> {
   const query = `
     query($userName:String!) {
       user(login: $userName){
@@ -81,7 +83,7 @@ async function fetchGithubContributionsGraphQL(
           contributionCalendar {
             weeks {
               contributionDays {
-                color
+                contributionLevel
                 contributionCount
               }
             }
@@ -113,19 +115,28 @@ async function fetchGithubContributionsGraphQL(
   // Format the contribution days into a 2D array of objects (weeks x days)
   const weeks =
     json.data.user.contributionsCollection.contributionCalendar.weeks;
-  const colors: ({ color: string; contributionCount: number } | null)[][] = [];
+  const levels: ({
+    level: 0 | 1 | 2 | 3 | 4;
+    contributionCount: number;
+  } | null)[][] = [];
   for (let c = 0; c < weeks.length; c++) {
-    colors[c] = [];
+    levels[c] = [];
     const days = weeks[c].contributionDays;
     for (let r = 0; r < days.length; r++) {
-      colors[c][r] = {
-        color: days[r].color,
+      levels[c][r] = {
+        level:
+          (days[r].contributionLevel === "FOURTH_QUARTILE" && 4) ||
+          (days[r].contributionLevel === "THIRD_QUARTILE" && 3) ||
+          (days[r].contributionLevel === "SECOND_QUARTILE" && 2) ||
+          (days[r].contributionLevel === "FIRST_QUARTILE" && 1) ||
+          0,
         contributionCount: days[r].contributionCount,
       };
     }
   }
-  return colors;
+  return levels;
 }
+
 /**
  * Checks if a circle and a rectangle are colliding.
  *
@@ -365,11 +376,10 @@ export async function generateSVG(
       const day = (colorDays[c] && colorDays[c][r]) || null;
       if (!day) continue; // skip bricks for missing days
 
-      let dayColorIndex = GITHUB_LIGHT.indexOf(day.color.toLowerCase());
       bricks.push({
         x: c * (BRICK_SIZE + BRICK_GAP) + PADDING,
         y: r * (BRICK_SIZE + BRICK_GAP) + PADDING,
-        colorClass: dayColorIndex !== -1 ? `c${dayColorIndex}` : "c0",
+        colorClass: `c${day.level}`,
         status: "visible",
         hasCommit: day.contributionCount > 0,
       });
