@@ -134,6 +134,7 @@ Here is the list of available options:
 
 - --username (required): GitHub username
 - --token (required): Token with access to the user activity
+- --default-color: Generate light version with GitHub default colors
 - --dark: Generate dark version
 - --light: Generate light version
 - --no-ghost-bricks: All days are used as bricks

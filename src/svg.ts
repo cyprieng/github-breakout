@@ -62,20 +62,30 @@ type FrameState = {
   bricks: BrickStatus[]; // Array of brick statuses (visible or hidden)
 };
 
+// Interface for GitHub Contribution Graph
+interface GitHubContributionDay {
+  level: 0 | 1 | 2 | 3 | 4;
+  contributionCount: number;
+}
+
+// Interface for GitHub Contribution Response
+interface GithubContributionResponse {
+  days: (GitHubContributionDay | null)[][];
+  defaultColorPalette: ColorPalette;
+}
+
 /**
  * Fetches the GitHub contributions calendar for a user using the GraphQL API.
  *
  * @param userName - The GitHub username to fetch contributions for.
  * @param githubToken - A GitHub personal access token with appropriate permissions.
- * @returns A 2D array representing weeks and days, where each element contains the color string or null.
+ * @returns The default color palette and a 2D array representing weeks and days, where each element contains the color string or null.
  * @throws Will throw an error if the API request fails or returns errors.
  */
 async function fetchGithubContributionsGraphQL(
   userName: string,
   githubToken: string,
-): Promise<
-  ({ level: 0 | 1 | 2 | 3 | 4; contributionCount: number } | null)[][]
-> {
+): Promise<GithubContributionResponse> {
   const query = `
     query($userName:String!) {
       user(login: $userName){
@@ -85,6 +95,7 @@ async function fetchGithubContributionsGraphQL(
               contributionDays {
                 contributionLevel
                 contributionCount
+                color
               }
             }
           }
@@ -115,26 +126,36 @@ async function fetchGithubContributionsGraphQL(
   // Format the contribution days into a 2D array of objects (weeks x days)
   const weeks =
     json.data.user.contributionsCollection.contributionCalendar.weeks;
-  const levels: ({
-    level: 0 | 1 | 2 | 3 | 4;
-    contributionCount: number;
-  } | null)[][] = [];
+  const defaultColorPalette: Record<0 | 1 | 2 | 3 | 4, string> = {
+    0: "#000",
+    1: "#000",
+    2: "#000",
+    3: "#000",
+    4: "#000",
+  };
+  const levels: (GitHubContributionDay | null)[][] = [];
   for (let c = 0; c < weeks.length; c++) {
     levels[c] = [];
     const days = weeks[c].contributionDays;
     for (let r = 0; r < days.length; r++) {
+      const level =
+        (days[r].contributionLevel === "FOURTH_QUARTILE" && 4) ||
+        (days[r].contributionLevel === "THIRD_QUARTILE" && 3) ||
+        (days[r].contributionLevel === "SECOND_QUARTILE" && 2) ||
+        (days[r].contributionLevel === "FIRST_QUARTILE" && 1) ||
+        0;
+
+      defaultColorPalette[level] = days[r].color;
       levels[c][r] = {
-        level:
-          (days[r].contributionLevel === "FOURTH_QUARTILE" && 4) ||
-          (days[r].contributionLevel === "THIRD_QUARTILE" && 3) ||
-          (days[r].contributionLevel === "SECOND_QUARTILE" && 2) ||
-          (days[r].contributionLevel === "FIRST_QUARTILE" && 1) ||
-          0,
+        level,
         contributionCount: days[r].contributionCount,
       };
     }
   }
-  return levels;
+  return {
+    days: levels,
+    defaultColorPalette: Object.values(defaultColorPalette) as ColorPalette,
+  };
 }
 
 /**
@@ -334,7 +355,7 @@ export async function generateSVG(
     enableGhostBricks = true,
     paddleColor = "#1F6FEB",
     ballColor = "#1F6FEB",
-    bricksColors = "github_light",
+    bricksColors,
   } = options;
   const colorDays = await fetchGithubContributionsGraphQL(
     username,
@@ -342,7 +363,7 @@ export async function generateSVG(
   );
 
   // The number of columns (weeks) is determined by the API response
-  const brickColumnCount = colorDays.length;
+  const brickColumnCount = colorDays.days.length;
 
   // Calculate canvasWidth and canvasHeight dynamically
   const canvasWidth =
@@ -360,7 +381,7 @@ export async function generateSVG(
   const canvasHeight = paddleY + PADDLE_HEIGHT + PADDING;
 
   // Pick palette
-  let colorPalette: ColorPalette = GITHUB_LIGHT;
+  let colorPalette: ColorPalette = colorDays.defaultColorPalette;
   if (bricksColors === "github_light") {
     colorPalette = GITHUB_LIGHT;
   } else if (bricksColors === "github_dark") {
@@ -373,7 +394,7 @@ export async function generateSVG(
   const bricks: Brick[] = [];
   for (let c = 0; c < brickColumnCount; c++) {
     for (let r = 0; r < 7; r++) {
-      const day = (colorDays[c] && colorDays[c][r]) || null;
+      const day = (colorDays.days[c] && colorDays.days[c][r]) || null;
       if (!day) continue; // skip bricks for missing days
 
       bricks.push({

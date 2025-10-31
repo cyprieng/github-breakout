@@ -6,6 +6,7 @@ import * as path from "path";
 interface ParsedArgs {
   username?: string; // GitHub username
   token?: string; // GitHub token
+  defaultColors?: boolean; // Use default colors
   light?: boolean; // Generate light mode SVG
   dark?: boolean; // Generate dark mode SVG
   enableGhostBricks?: boolean; // Ghost bricks for days without contribution
@@ -32,6 +33,7 @@ function getInput(name: string): string | undefined {
  */
 function parseArgs(argv: string[]): ParsedArgs {
   const parsed: ParsedArgs = {
+    defaultColors: false,
     dark: false,
     light: false,
   };
@@ -41,6 +43,8 @@ function parseArgs(argv: string[]): ParsedArgs {
       parsed.username = argv[++i];
     } else if (arg === "--token" && i + 1 < argv.length) {
       parsed.token = argv[++i];
+    } else if (arg === "--default-colors") {
+      parsed.defaultColors = true;
     } else if (arg === "--dark") {
       parsed.dark = true;
     } else if (arg === "--light") {
@@ -82,6 +86,7 @@ const bricksColorsFromInput =
 const options = {
   username: cliArgs.username || getInput("GITHUB_USERNAME"),
   token: cliArgs.token || getInput("GITHUB_TOKEN"),
+  defaultColors: cliArgs.defaultColors,
   dark: cliArgs.dark,
   light: cliArgs.light,
   enableGhostBricks:
@@ -106,11 +111,12 @@ if (!options.username || !options.token) {
 if (
   !options.dark &&
   !options.light &&
+  !options.defaultColors &&
   !options.bricksColors &&
   !options.paddleColor &&
   !options.ballColor
 ) {
-  options.light = true; // Default to light mode if neither is specified
+  options.defaultColors = true; // Default colors if neither is specified
 
   // Enable both for GitHub actions by default
   if (process.env.GITHUB_ACTIONS === "true") {
@@ -139,6 +145,9 @@ if (options.paddleColor || options.ballColor || options.bricksColors) {
     bricksColors: (options.bricksColors as ColorPalette) || "github_light",
     name: "custom",
   });
+}
+if (options.defaultColors) {
+  variants.push({ bricksColors: undefined, name: "light" });
 }
 if (options.light) {
   variants.push({ bricksColors: "github_light", name: "light" });
